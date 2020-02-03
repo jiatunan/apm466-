@@ -1,0 +1,150 @@
+#import data
+library(lubridate)
+bonds <- read.csv("/Users/apple/Desktop/APM466 data.csv", header = TRUE, sep=",",stringsAsFactors = FALSE)
+bonds<as.data.frame(bonds)
+head(bonds)
+bonds$ISSUEDATE <-as.Date(bonds$ISSUEDATE,"%m/%d/%Y")
+bonds$MATURITYDATE<-as.Date(bonds$MATURITYDATE,"%m/%d/%Y")
+#remove bonds that were issued before '2000-01-01"
+bonds <-bonds[bonds$ISSUEDATE > as.Date("01/01/2000"),]
+# a date vector
+x<-rep(as.Date("2020-01-25"), 10) 
+for (i in (1:10)) {
+  x[i]<-as.Date(180*i,origin = "2020-01-25")
+}
+# create a vector containing 10 bonds that are of our interests
+y<-rep(1,10)
+for (i in (1:10)){
+  if(length(which((abs(bonds[,5]-x[i])==min(abs(bonds[,5]-x[i])))))==1){
+    y[i]<-which((abs(bonds[,5]-x[i])==min(abs(bonds[,5]-x[i]))))
+     }
+  else{ index<-which(abs(bonds[,5]-x[i])==min(abs(bonds[,5]-x[i]))) #for bonds that have same data of our interest, we select the one that has smmaler coupon rate
+     y[i]<-index[which(bonds[index,2]==min(bonds[index,2]))]
+  }
+}
+y 
+
+#compute the yield
+dates<-c(6:15)
+bonds$coupon = as.numeric(sub("%", "", bonds$coupon)) #10 days that are of our interest
+r<-rep(1,10)
+R<-data.frame(r,r,r,r,r,r,r,r,r,r)
+for (j in (1:10)){
+  R[1,j]<-log((bonds[y[1],2]/2+100)/bonds[y[1],dates[j]])
+}
+for (j in (1:10)) {
+    for (i in (2:10)) {
+     R[i,j]<-log((100+bonds[y[i],2]/2)/(bonds[y[i],dates[j]]-
+                                          sum(bonds[y[c(1:(i-1))],2]/2*(exp(-R[c(1:(i-1)),j]*c(1:(i-1)))))))
+     }
+  }
+R<-2*R
+colnames(R)<-c("Jan-02","Jan-03","Jan-06","Jan-07","Jan-08","Jan-09","Jan-10", "Jan-13","Jan-14","Jan-15")
+R
+
+#plot the YTM using spline interpolation
+library(splines)
+x<seq(0.5,5,0.5)
+plot_color<-c("red","blue","yellow","black","orange","grey","purple","green",rgb(0,0.5,0.6),rgb(0,0.3,0.1))
+fit<-smooth.spline(x,R[,1])
+plot(fit,col=plot_color[1],type = "l", xlab="time", ylab="yield rate",main = "yield curve")
+for (j in (2:10)){
+  fit_new<-smooth.spline(x,R[,j])
+  lines(fit_new,col=plot_color[j], type = "l")
+}
+legend("topright",c("Jan-02","Jan-03","Jan-06","Jan-07","Jan-08","Jan-09","Jan-10", "Jan-13","Jan-14","Jan-15"),
+       col = plot_color, lty = c(1,1), bty = "n", cex=0.8, lwd = c(2,2))
+
+#plot the spot curves
+x<-seq(0.5,5,0.5)
+length(x)
+plot(x,R[,1],col=plot_color[1],type = "l", xlab="time", ylab="spot rate",main = "the continuous spot raes")
+lines(x,R[,2],col=plot_color[2],type = "l")
+lines(x,R[,3],col=plot_color[3],type = "l")
+lines(x,R[,4],col=plot_color[4],type = "l")
+lines(x,R[,5],col=plot_color[5],type = "l")
+lines(x,R[,6],col=plot_color[6],type = "l")
+lines(x,R[,7],col=plot_color[7],type = "l")
+lines(x,R[,8],col=plot_color[8],type = "l")
+lines(x,R[,9],col=plot_color[9],type = "l")
+lines(x,R[,10],col=plot_color[10],type = "l")
+legend("topright", c("Jan-02","Jan-03","Jan-06","Jan-07","Jan-08","Jan-09","Jan-10", "Jan-13","Jan-14","Jan-15"),
+       lwd=c(2,2), col = plot_color,cex=0.8,bty="n",lty=c(1,1))
+
+#compute the forward rate
+g<-rep(1,4)
+f1<-data.frame(g,g,g,g,g,g,g,g,g,g)
+for (j in (1:10)){
+  for (i in (1:4)){
+    f1[i,j]<-((i+1)*R[2*i+2,j]-R[2,j])/i
+  }
+}
+g<-rep(1,3)
+f2<-data.frame(g,g,g,g,g,g,g,g,g,g)
+for (j in (1:10)){
+  for (i in (1:3)){
+    f2[i,j]<-((i+2)*R[4+2*i,j]-2*R[4,j])/i
+  }
+}
+g<-rep(1,2)
+f3<-data.frame(g,g,g,g,g,g,g,g,g,g)
+for (j in (1:10)){
+  for (i in (1:2)){
+    f3[i,j]<-((i+3)*R[6+2*i,j]-3*R[6,j])/i
+  }
+}
+f4<-rep(1,10)
+for (j in (1:10)){
+  f4[j]<-5*R[10,j]-4*R[8,j]
+}
+f<-rbind(f1,f2,f3,f4)
+colnames(f)<-c("Jan-02","Jan-03","Jan-06","Jan-07","Jan-08","Jan-09","Jan-10", "Jan-13","Jan-14","Jan-15")
+rownames(f)<-c("f12","f13","f14","f15","f23","f24","f25","f34","f35","f45")
+f
+
+#Plot the 1-year forward curves 
+x<-2:5
+plot(x,f1[,1],col=plot_color[1], type = "l", main = "1-year forward rates")
+lines(x,f1[,2],col=plot_color[2],type = "l")
+lines(x,f1[,3],col=plot_color[3],type = "l")
+lines(x,f1[,4],col=plot_color[4],type = "l")
+lines(x,f1[,5],col=plot_color[5],type = "l")
+lines(x,f1[,6],col=plot_color[6],type = "l")
+lines(x,f1[,7],col=plot_color[7],type = "l")
+lines(x,f1[,8],col=plot_color[8],type = "l")
+lines(x,f1[,9],col=plot_color[9],type = "l")
+lines(x,f1[,10],col=plot_color[10],type = "l")
+legend("topright",col = plot_color,c("Jan-02","Jan-03","Jan-06","Jan-07","Jan-08","Jan-09","Jan-10", "Jan-13","Jan-14","Jan-15"),
+       cex = 0.8,lty = c(1,1),lwd=c(2,2),bty = "n")
+
+
+#covariance matrix and eigenvalues of yields
+x<-rep(1,5)
+ts_yield<-data.frame(x,x,x,x,x,x,x,x,x)
+for (i in (1:5)){
+    for (j in (1:9)){
+        ts_yield[i,j]<-log(R[i*2,j+1]/R[i*2,j])
+     }
+ }
+ts_yield
+covyield<-cov(ts_yield,ts_yield)
+eeg<-eigen(cov(ts_yield,ts_yield), symmetric='T')
+max(eeg$values)/sum(eeg$values)
+max<-which(eeg$values==max(eeg$values))
+eeg$vectors[,max]
+
+#covariance matirx and eigenvalues of forward rates
+x<-rep(1,4)
+ts_f<-data.frame(x,x,x,x,x,x,x,x,x)
+for (i in (1:4)){
+  for (j in (1:9)){
+    ts_f[i,j]<-log(f1[i,j+1]/f1[i,j])
+  }
+}
+ts_f
+covfor<-cov(ts_f,ts_f)
+eeg2<-eigen(cov(ts_f,ts_f),symmetric = 'T')
+max(eeg2$values)/sum(eeg2$values)
+max2<-which(eeg2$values==max(eeg2$values))
+eeg2$vectors[,max2]
+
